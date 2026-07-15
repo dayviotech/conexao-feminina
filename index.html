@@ -103,6 +103,14 @@
     letter-spacing:.02em;
     margin:0;
   }
+  .value-original{
+    font-family:'Playfair Display',serif;
+    font-size:1.15rem;
+    color:var(--wine-soft);
+    text-decoration:line-through;
+    opacity:.75;
+    margin:0 0 2px;
+  }
 
   /* ---------- EVENT INFO ---------- */
   .info-band{
@@ -258,6 +266,14 @@
   }
   .error-msg.show{display:block;}
 
+  .cupom-msg{
+    margin-top:8px;
+    font-size:.82rem;
+    display:none;
+  }
+  .cupom-msg.valid{display:block; color:#3d6b3d;}
+  .cupom-msg.invalid{display:block; color:#a4333c;}
+
   .form-foot{
     text-align:center; margin-top:20px; font-size:.8rem; color:var(--wine-soft);
   }
@@ -349,7 +365,8 @@
 
 <section class="value-narrative">
   <p class="value-close">Um dia de reconexão com você mesma, por</p>
-  <p class="value-amount">R$ 369,00</p>
+  <p class="value-original" id="valueOriginal" style="display:none;">R$ 369,00</p>
+  <p class="value-amount" id="valueAmount">R$ 369,00</p>
 </section>
 
 <div class="form-wrap">
@@ -376,6 +393,10 @@
       <label>O que te motivou a participar desse encontro? <span class="req">*</span></label>
       <textarea id="motivacao" required></textarea>
 
+      <label>Cupom de desconto <span style="color:var(--wine-soft); font-weight:400;">(opcional)</span></label>
+      <input type="text" id="cupom" placeholder="Se tiver um cupom, digite aqui" autocomplete="off" style="text-transform:uppercase;">
+      <div class="cupom-msg" id="cupomMsg"></div>
+
       <button type="submit" class="submit-btn" id="submitBtn">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.9-10.1-9.3C.4 9.1 1.6 5.6 4.9 4.7c2-.6 4 .2 5.1 1.9C11.1 4.9 13.1 4.1 15.1 4.7c3.3.9 4.5 4.4 3 7-2.6 4.4-10.1 9.3-10.1 9.3z"/></svg>
         <span id="submitLabel">Continuar para pagamento</span>
@@ -401,6 +422,61 @@
    ========================================================================= */
 const N8N_WEBHOOK_URL = "https://n8n-eogk.srv1598428.hstgr.cloud/webhook/conexao-feminina-inscricao";
 
+/* =========================================================================
+   CUPONS — só pra dar feedback visual na hora (preço "bonito" na tela).
+   O valor DE VERDADE cobrado é sempre recalculado no n8n a partir do
+   código do cupom — o navegador nunca decide o valor final.
+   Se a Marcia/Fabíola criar um cupom novo, atualiza aqui E no n8n
+   (node "Preparar Dados"), senão a pré-visualização fica errada mesmo
+   que a cobrança em si continue certa.
+   ========================================================================= */
+const CUPONS = {
+  'DESPERTAR10': 10,
+  'DESPERTAR15': 15
+};
+const PRECO_BASE = 369.00;
+
+const cupomInput = document.getElementById('cupom');
+const cupomMsg = document.getElementById('cupomMsg');
+const valueOriginal = document.getElementById('valueOriginal');
+const valueAmount = document.getElementById('valueAmount');
+
+function formatBRL(v) {
+  return 'R$ ' + v.toFixed(2).replace('.', ',');
+}
+
+function atualizarPreco() {
+  const codigo = cupomInput.value.trim().toUpperCase();
+
+  if (!codigo) {
+    cupomMsg.classList.remove('valid', 'invalid');
+    cupomMsg.textContent = '';
+    valueOriginal.style.display = 'none';
+    valueAmount.textContent = formatBRL(PRECO_BASE);
+    return;
+  }
+
+  const desconto = CUPONS[codigo];
+
+  if (desconto) {
+    const precoComDesconto = PRECO_BASE * (1 - desconto / 100);
+    cupomMsg.classList.remove('invalid');
+    cupomMsg.classList.add('valid');
+    cupomMsg.textContent = `Cupom aplicado! ${desconto}% de desconto 🤍`;
+    valueOriginal.style.display = 'block';
+    valueOriginal.textContent = formatBRL(PRECO_BASE);
+    valueAmount.textContent = formatBRL(precoComDesconto);
+  } else {
+    cupomMsg.classList.remove('valid');
+    cupomMsg.classList.add('invalid');
+    cupomMsg.textContent = 'Cupom inválido.';
+    valueOriginal.style.display = 'none';
+    valueAmount.textContent = formatBRL(PRECO_BASE);
+  }
+}
+
+cupomInput.addEventListener('input', atualizarPreco);
+
 const form = document.getElementById('inscricaoForm');
 const btn = document.getElementById('submitBtn');
 const label = document.getElementById('submitLabel');
@@ -418,6 +494,7 @@ form.addEventListener('submit', async (e) => {
     nascimento: document.getElementById('nascimento').value,
     encontros: ['Conexão Feminina "O Despertar" - 15/08/2026'],
     motivacao: document.getElementById('motivacao').value.trim(),
+    cupom: document.getElementById('cupom').value.trim().toUpperCase(),
     origem: 'landing-conexao-feminina',
     data_envio: new Date().toISOString()
   };
